@@ -1,0 +1,10 @@
+text:
+  language: english
+  lowercase: true
+  remove_stopwords: true
+  stemmer: porter
+  codebook_size: 5000
+  min_document_frequency: 2
+  chunk_max_tokens: 128
+  chunk_overlap_tokens: 16
+  spimi_max_postings_per_block: 50000

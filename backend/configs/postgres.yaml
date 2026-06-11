@@ -1,0 +1,7 @@
+postgres:
+  host: localhost
+  port: 5433
+  database: proyecto02
+  user: proyecto02
+  password_env: PROYECTO02_POSTGRES_PASSWORD
+  schema_name: public

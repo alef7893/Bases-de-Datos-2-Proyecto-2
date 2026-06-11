@@ -1,0 +1,42 @@
+# Configuracion y modelos de datos
+# Valida la configuracion, los productos, las consultas y los resultados.
+pydantic>=2.13,<3
+
+# Lee los archivos YAML ubicados en backend/configs/.
+PyYAML>=6.0,<7
+
+# Pipeline textual
+# Proporciona los stemmers utilizados durante la normalizacion de texto.
+nltk>=3.9,<4
+
+# Procesamiento numerico y pipeline visual
+# Maneja vectores, matrices, histogramas y operaciones numericas.
+numpy>=2.4,<3
+
+# Proporciona SIFT y las operaciones de lectura y preprocesamiento de imagenes.
+# La variante headless evita depender de una interfaz grafica del sistema.
+opencv-python-headless>=4.13,<5
+
+# Entrena el codebook visual mediante MiniBatchKMeans.
+scikit-learn>=1.9,<2
+
+# Serializa y carga el codebook visual entrenado.
+joblib>=1.5,<2
+
+# Persistencia y comparativas en PostgreSQL
+# Cliente PostgreSQL con binarios incluidos para simplificar la instalacion.
+psycopg[binary]>=3.3,<4
+
+# Integra vectores de Python con la extension pgvector de PostgreSQL.
+pgvector>=0.4,<1
+
+# Frontend
+# Construye la interfaz visual compartida por las aplicaciones 1 y 4.
+streamlit>=1.58,<2
+
+# Soporte de imagenes utilizado por Streamlit y sus componentes visuales.
+Pillow>=12.2,<13
+
+# Pruebas
+# Ejecuta la suite automatizada del proyecto.
+pytest>=9.0,<10

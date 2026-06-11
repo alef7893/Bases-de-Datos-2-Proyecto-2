@@ -1,0 +1,23 @@
+name: proyecto02
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: proyecto02-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-proyecto02}
+      POSTGRES_USER: ${POSTGRES_USER:-proyecto02}
+      POSTGRES_PASSWORD: ${PROYECTO02_POSTGRES_PASSWORD:-proyecto02}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-proyecto02} -d ${POSTGRES_DB:-proyecto02}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:

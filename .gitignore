@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+artifacts/
+reports/
+
+# Dataset local y archivo comprimido original. No deben versionarse.
+archive/
+archive.zip
+
+.env

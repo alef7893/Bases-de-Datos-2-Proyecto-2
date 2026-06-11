@@ -1,0 +1,23 @@
+project:
+  name: proyecto02
+  seed: 42
+
+paths:
+  dataset_root: ../archive/fashion-dataset
+  artifacts_dir: ../artifacts
+  reports_dir: ../reports
+
+data:
+  active_scale: 1k
+  partition_sizes:
+    1k: 1000
+    10k: 10000
+    full: null
+  split_ratios:
+    train: 0.8
+    validation: 0.1
+    test: 0.1
+
+logging:
+  level: INFO
+  format: "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
