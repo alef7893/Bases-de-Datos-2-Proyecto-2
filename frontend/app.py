@@ -1,4 +1,4 @@
-"""Streamlit entry point for the project's frontend applications."""
+"""Generic Streamlit entry point for registered frontend applications."""
 
 from __future__ import annotations
 
@@ -11,9 +11,8 @@ FRONTEND_ROOT = Path(__file__).resolve().parent
 if str(FRONTEND_ROOT) not in sys.path:
     sys.path.insert(0, str(FRONTEND_ROOT))
 
-from shared.runtime import SCALE, load_backend
-from app01_visual_search.page import render_visual_search
-from app04_multimodal_recommender.page import render_multimodal_recommender
+from applications.registry import APPLICATIONS
+from core.runtime import SCALE, load_backend
 
 
 def main() -> None:
@@ -35,13 +34,10 @@ def main() -> None:
         st.stop()
 
     products = [product for product in backend.catalog.products() if product.has_image]
-    app01_tab, app04_tab = st.tabs(
-        ["App 01 - Busqueda visual", "App 04 - Recomendacion multimodal"]
-    )
-    with app01_tab:
-        render_visual_search(backend, products)
-    with app04_tab:
-        render_multimodal_recommender(backend, products)
+    tabs = st.tabs([application.label for application in APPLICATIONS])
+    for tab, application in zip(tabs, APPLICATIONS, strict=True):
+        with tab:
+            application.render(backend, products)
 
 
 if __name__ == "__main__":

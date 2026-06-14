@@ -108,6 +108,13 @@ class ApplicationsConfig(StrictModel):
         return weights
 
 
+class Phase3Config(StrictModel):
+    hnsw_m: int = Field(gt=0)
+    hnsw_ef_construction: int = Field(gt=0)
+    hnsw_ef_search: int = Field(gt=0)
+    comparison_query_count: int = Field(gt=0)
+
+
 class ProjectConfig(StrictModel):
     project: ProjectSettings
     paths: PathsConfig
@@ -117,6 +124,7 @@ class ProjectConfig(StrictModel):
     vision: VisionConfig
     postgres: PostgresConfig
     applications: ApplicationsConfig
+    phase3: Phase3Config
 
     @field_validator("paths")
     @classmethod
@@ -173,6 +181,7 @@ def load_project_config(
         "vision.yaml",
         "postgres.yaml",
         "applications.yaml",
+        "phase3.yaml",
     ):
         merged = _deep_merge(merged, _read_yaml(directory / filename))
 

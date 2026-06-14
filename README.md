@@ -119,16 +119,26 @@ Capas propuestas:
 - `Fusion Engine`: combinacion de puntajes multimodales
 - `Persistence Layer`: almacenamiento en PostgreSQL
 
-La implementacion de la arquitectura unificada se agrupa en `backend/src/multimodal/`, separada de las aplicaciones y de los modulos transversales:
+La implementacion se organiza por responsabilidad dentro de `backend/src/`:
+
+- `pipeline/`: preparacion offline del catalogo y construccion de representaciones textuales y visuales
+- `retrieval/custom/`: indices invertidos y recuperadores implementados por el proyecto
+- `retrieval/postgres/`: recuperadores nativos PostgreSQL mediante GIN y pgvector HNSW
+- `retrieval/shared/`: catalogo, ranking y fusion reutilizados por varias aplicaciones
+- `persistence/`: conexion, creacion del esquema y carga de artefactos a PostgreSQL
+- `applications/`: coordinacion de los motores para las aplicaciones 1 y 4
+- `experiments/`: metricas, evaluadores, graficos y analisis comparativos
+
+Las etapas de la arquitectura permanecen representadas mediante archivos directos, evitando carpetas intermedias sin implementacion:
 
 | Etapa | Carpeta | Responsabilidad |
 | --- | --- | --- |
-| Contenido | `multimodal/stage_01_content/` | Carga, limpieza y particionado reproducible del dataset |
-| Split Chunks | `multimodal/stage_02_split_chunks/` | Division del contenido en unidades procesables |
-| Extractor Features | `multimodal/stage_03_extractor_features/` | Extraccion y preprocesamiento de caracteristicas textuales y visuales |
-| Codebook | `multimodal/stage_04_codebook/` | Construccion de vocabularios e histogramas por modalidad |
-| Indice Invertido | `multimodal/stage_05_inverted_index/` | Construccion de indices propios textuales y visuales |
-| Busqueda por Similitud | `multimodal/stage_06_similarity_search/` | Recuperacion, ranking, catalogo y fusion multimodal |
+| Contenido | `pipeline/catalog/` | Carga, limpieza y particionado reproducible |
+| Split Chunks | `pipeline/text/splitter.py` | Division del texto; la imagen completa actua actualmente como unidad visual |
+| Extractor Features | `pipeline/text/extractor.py`, `pipeline/image/preprocessing.py`, `pipeline/image/sift_extractor.py` | Extraccion y preprocesamiento por modalidad |
+| Codebook | `pipeline/text/codebook.py`, `pipeline/image/codebook.py`, `pipeline/image/encoder.py`, archivos `histogram.py` | Vocabularios e histogramas |
+| Indice Invertido | `retrieval/custom/text/inverted_index.py`, `retrieval/custom/image/inverted_index.py` | Construccion de indices propios |
+| Busqueda por Similitud | `retrieval/custom/`, `retrieval/postgres/` y `retrieval/shared/` | Recuperacion, catalogo, ranking y fusion |
 
 Descripcion conceptual de los componentes:
 
@@ -141,14 +151,44 @@ Descripcion conceptual de los componentes:
 
 Aunque cada modalidad requiere un tratamiento particular, todas recorren estas etapas y producen resultados comparables. Esta estructura permite reutilizar el mismo flujo en diferentes aplicaciones y agregar nuevas modalidades sin modificar el proposito general de la arquitectura.
 
-Los modulos transversales permanecen en `common/`, `persistence/`, `applications/` y `presentation/`. La interfaz visual ejecutable se mantiene separada en la carpeta `frontend/` ubicada en la raiz del proyecto.
+El flujo resultante del proyecto es:
+
+```text
+pipeline/
+  construye representaciones
+        |
+        v
+artifacts/
+  almacena representaciones
+        |
+        +---------------------+
+        |                     |
+        v                     v
+retrieval/custom/       persistence/ + retrieval/postgres/
+        |                     |
+        +----------+----------+
+                   |
+                   v
+             applications/
+                   |
+          +--------+--------+
+          |                 |
+          v                 v
+       frontend/       experiments/
+                            |
+                            v
+                         reports/
+```
+
+Los modulos transversales permanecen en `common/` y `presentation/`. La interfaz visual ejecutable se mantiene separada en la carpeta `frontend/` ubicada en la raiz del proyecto.
 
 El frontend separa las interfaces de las aplicaciones, pero utiliza una unica instancia compartida del backend:
 
-- `frontend/app01_visual_search/`: interfaz de la aplicacion 1, busqueda visual e-commerce
-- `frontend/app04_multimodal_recommender/`: interfaz de la aplicacion 4, recomendacion multimodal
-- `frontend/shared/`: carga del backend y componentes visuales reutilizables
-- `frontend/app.py`: punto de entrada y navegacion entre aplicaciones
+- `frontend/app.py`: punto de entrada generico que renderiza las aplicaciones registradas
+- `frontend/core/`: carga del backend y componentes visuales reutilizables
+- `frontend/applications/`: un archivo por aplicacion y el registro central `registry.py`
+
+Para incorporar una aplicacion nueva se crea un modulo con una funcion `render(backend, products)` dentro de `frontend/applications/` y se agrega una entrada a `APPLICATIONS` en `registry.py`. No es necesario modificar `app.py`.
 
 La logica especifica de cada aplicacion debe limitarse a:
 
@@ -458,6 +498,13 @@ Flujo previsto:
 - `codebook` visual
 - ranking por similitud visual entre productos
 
+Para la Fase 3, esta aplicacion compara dos motores que comparten el mismo histograma visual:
+
+- indice invertido visual propio, implementado durante la Fase 2
+- PostgreSQL con `pgvector` e indice aproximado `HNSW`
+
+La busqueda vectorial exacta de `pgvector` se utiliza como referencia para calcular `Recall@K`. La comparativa registra por separado la latencia de codificacion, la latencia de cada motor, el throughput, el `Recall@K` y el espacio ocupado por los indices.
+
 #### Idea 4: Recomendacion Multimodal
 
 Flujo previsto:
@@ -468,6 +515,15 @@ Flujo previsto:
 - extraccion `SIFT` para imagen y `TF-IDF` para texto
 - `codebook` visual y textual
 - ranking visual, textual o fusionado
+
+Para la Fase 3, esta aplicacion conserva la misma fusion ponderada y compara dos
+implementaciones completas del flujo de recuperacion:
+
+- implementacion propia: indice invertido SPIMI para texto e indice invertido visual
+- PostgreSQL: full-text search con indice `GIN` para texto y `pgvector` con `HNSW` para imagen
+
+La comparativa mide latencia, throughput, `Precision@K` por tipo de articulo,
+coincidencia entre rankings y espacio ocupado por los indices.
 
 ### 3.10 Metricas de evaluacion definidas
 
@@ -597,22 +653,24 @@ Los comandos de construccion deben ejecutarse desde `backend/`. Primero se gener
 
 ```powershell
 cd backend
-python -m scripts.build_catalog
+python -m scripts.pipeline.build_catalog
 ```
 
 Luego se construyen los indices textuales y visuales. La escala `1k` es la recomendada para pruebas rapidas:
 
 ```powershell
 cd backend
-python -m scripts.build_text_index --scale 1k
-python -m scripts.build_visual_index --scale 1k
+python -m scripts.pipeline.build_text_index --scale 1k
+python -m scripts.pipeline.build_visual_index --scale 1k
 ```
 
 Tambien se admiten las escalas `10k` y `full`, pero requieren mas tiempo, memoria y espacio de almacenamiento.
 
 ### 7.5 Persistencia PostgreSQL
 
-Esta etapa es opcional para las aplicaciones de Fase 2. Para levantar PostgreSQL con pgvector:
+Esta etapa es opcional para las aplicaciones de Fase 2 y necesaria para ejecutar
+HNSW en la aplicacion 1 o la alternativa `GIN + HNSW` de la aplicacion 4. Para
+levantar PostgreSQL con pgvector:
 
 ```powershell
 cd backend
@@ -623,15 +681,83 @@ Aplicar el esquema y cargar los artefactos construidos:
 
 ```powershell
 cd backend
-python -m scripts.load_postgres --scale 1k --init-schema
+python -m scripts.persistence.load_postgres --scale 1k --init-schema
 ```
 
 La carga puede repetirse sin duplicar registros. Para consultar los conteos persistidos:
 
 ```powershell
 cd backend
-python -m scripts.load_postgres --counts-only
+python -m scripts.persistence.load_postgres --counts-only
 ```
+
+Para preparar solamente los artefactos visuales y construir el indice HNSW de Fase 3:
+
+```powershell
+cd backend
+python -m scripts.persistence.prepare_hnsw --scale 1k --init-schema
+```
+
+El comando carga los mismos histogramas utilizados por el indice propio y reconstruye HNSW con los parametros definidos en `configs/phase3.yaml`.
+
+Para ejecutar la comparativa entre indice propio, HNSW y busqueda vectorial exacta:
+
+```powershell
+cd backend
+python -m scripts.experiments.compare_visual_indexes --scale 1k --top-k 10 --queries 25
+```
+
+El reporte se almacena en `reports/phase3/visual_comparison_1k.json`.
+
+Para cargar los datos de texto e imagen, crear el indice GIN textual y reconstruir
+HNSW para la aplicacion 4:
+
+```powershell
+cd backend
+python -m scripts.persistence.prepare_postgres_multimodal --scale 1k
+```
+
+Para comparar la implementacion propia de la aplicacion 4 con PostgreSQL:
+
+```powershell
+cd backend
+python -m scripts.experiments.compare_multimodal_recommenders --scale 1k --top-k 10 --queries 25
+```
+
+El reporte se almacena en `reports/phase3/multimodal_app04_comparison_1k.json`.
+
+### 7.6 Evaluacion experimental de Fase 4
+
+La evaluacion completa de la aplicacion 1 mide latencia media, mediana y P95, throughput concurrente, `Precision@K`, `Recall@K` respecto a busqueda exacta, memoria Python, espacio de indices y accesos de bloques PostgreSQL mediante `EXPLAIN (ANALYZE, BUFFERS)`.
+
+Para ejecutar todas las escalas disponibles y preparar PostgreSQL automaticamente:
+
+```powershell
+cd backend
+python -m scripts.experiments.run_phase4_visual_evaluation --scales 1k 10k full --queries 25 --top-k 10 --repeats 3 --concurrency 4 --prepare-postgres
+```
+
+Las escalas que no tengan artefactos visuales construidos se registran como omitidas. Los reportes, graficos SVG y el resumen de trade-offs se almacenan en `reports/phase4/`.
+
+La evaluacion completa de la aplicacion 4 compara el flujo multimodal propio con
+PostgreSQL `GIN + HNSW`. Mide latencia media, mediana y P95, throughput
+concurrente, `Precision@K`, coincidencia entre rankings, memoria Python, espacio
+de indices y accesos I/O separados para GIN y HNSW. Debido a que la dataset no
+incluye juicios externos de relevancia multimodal, `Precision@K` considera
+relevantes los productos con el mismo `articleType`.
+
+Para ejecutar la evaluacion multi-escala de la aplicacion 4:
+
+```powershell
+cd backend
+python -m scripts.experiments.run_phase4_multimodal_evaluation --scales 1k 10k full --queries 25 --top-k 10 --repeats 3 --concurrency 4 --prepare-postgres
+```
+
+Las escalas sin artefactos completos de texto e imagen se omiten. Los reportes,
+graficos SVG y el resumen de trade-offs se almacenan en `reports/phase4/app04/`.
+La escala `full`, de aproximadamente 44 mil productos, representa la carga maxima
+posible con esta dataset y reemplaza la carga objetivo de `100k` sin duplicar
+registros artificialmente.
 
 Para detener PostgreSQL:
 
@@ -640,25 +766,39 @@ cd backend
 docker compose down
 ```
 
-### 7.6 Ejecucion por consola
+### 7.7 Ejecucion por consola
 
 Desde `backend/`, ejecutar la aplicacion 1 de busqueda visual:
 
 ```powershell
 cd backend
-python -m scripts.run_visual_search --product-id 1550 --scale 1k --top-k 5
+python -m scripts.applications.run_visual_search --product-id 1550 --scale 1k --top-k 5
+```
+
+Para ejecutar la misma consulta mediante HNSW:
+
+```powershell
+cd backend
+python -m scripts.applications.run_visual_search --product-id 1550 --scale 1k --top-k 5 --engine hnsw
 ```
 
 Ejecutar la aplicacion 4 de recomendacion multimodal:
 
 ```powershell
 cd backend
-python -m scripts.run_multimodal_recommender --product-id 1550 --scale 1k --top-k 5
+python -m scripts.applications.run_multimodal_recommender --product-id 1550 --scale 1k --top-k 5
+```
+
+Para ejecutar la misma consulta mediante PostgreSQL GIN y pgvector HNSW:
+
+```powershell
+cd backend
+python -m scripts.applications.run_multimodal_recommender --product-id 1550 --scale 1k --top-k 5 --engine postgres
 ```
 
 Ambos comandos reutilizan la misma arquitectura multimodal y los mismos artefactos de la escala seleccionada.
 
-### 7.7 Frontend visual
+### 7.8 Frontend visual
 
 Desde la raiz del proyecto, iniciar la interfaz compartida:
 
@@ -668,12 +808,12 @@ python -m streamlit run frontend/app.py
 
 El frontend carga una unica instancia del backend y presenta dos interfaces separadas:
 
-- `App 01 - Busqueda visual`: consulta mediante un producto del catalogo o una imagen subida
-- `App 04 - Recomendacion multimodal`: combina la informacion textual y visual de un producto
+- `App 01 - Busqueda visual`: consulta mediante un producto del catalogo o una imagen subida y permite elegir entre el indice propio y HNSW
+- `App 04 - Recomendacion multimodal`: combina texto e imagen y permite elegir entre la implementacion propia y PostgreSQL `GIN + HNSW`
 
 El frontend utiliza actualmente la escala `1k`.
 
-### 7.8 Pruebas
+### 7.9 Pruebas
 
 Ejecutar la suite automatizada desde `backend/`:
 

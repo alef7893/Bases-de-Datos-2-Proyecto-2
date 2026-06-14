@@ -1,0 +1,5 @@
+phase3:
+  hnsw_m: 16
+  hnsw_ef_construction: 64
+  hnsw_ef_search: 100
+  comparison_query_count: 25
