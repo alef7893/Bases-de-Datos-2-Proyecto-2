@@ -54,6 +54,11 @@ class TextCodebook:
         if norm:
             return {term: weight / norm for term, weight in weights.items()}
         return {}
+    
+    def transform_batch(self, documents: Iterable[Sequence[str]]) -> list[dict[str, float]]:
+        if not self._fitted:
+            raise RuntimeError("codebook must be fitted before transforming documents")
+        return [self.transform(tokens) for tokens in documents]
 
     def save(self, path: str | Path) -> None:
         output = Path(path)

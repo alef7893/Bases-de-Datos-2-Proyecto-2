@@ -40,10 +40,15 @@ class TextFeatureExtractor:
             raise ValueError(f"Unsupported stemmer: {stemmer}")
 
     def extract_text(self, text: str) -> list[str]:
+        if not text or not text.strip():
+            return []
+        
         normalized = text.lower() if self.lowercase else text
         tokens = self.TOKEN_PATTERN.findall(normalized)
+        
         if self.remove_stopwords:
             tokens = [token for token in tokens if token not in ENGLISH_STOPWORDS]
+            
         if self._stemmer is not None:
             tokens = [self._stemmer.stem(token) for token in tokens]
         return tokens

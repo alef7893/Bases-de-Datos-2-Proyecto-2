@@ -22,7 +22,8 @@ class TextSplitter:
         chunks: list[Chunk] = []
         step = self.max_tokens - self.overlap_tokens
         for position, start in enumerate(range(0, len(words), step)):
-            content = " ".join(words[start : start + self.max_tokens])
+            end = min(start + self.max_tokens, len(words))
+            content = " ".join(words[start:end])
             if not content:
                 break
             chunks.append(
@@ -32,9 +33,14 @@ class TextSplitter:
                     modality=Modality.TEXT,
                     position=position,
                     content=content,
-                    metadata={"start_token": start, "end_token": start + len(content.split())},
+                    metadata={
+                        "start_token": start, 
+                        "end_token": end,
+                        "chunk_size": end - start,
+                        "total_tokens": len(words)
+                    }
                 )
             )
-            if start + self.max_tokens >= len(words):
+            if end >= len(words):
                 break
         return chunks
