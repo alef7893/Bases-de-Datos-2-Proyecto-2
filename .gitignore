@@ -11,3 +11,4 @@ archive/
 archive.zip
 
 .env
+.DS_Store

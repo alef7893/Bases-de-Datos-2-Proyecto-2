@@ -40,3 +40,10 @@ Pillow>=12.2,<13
 # Pruebas
 # Ejecuta la suite automatizada del proyecto.
 pytest>=9.0,<10
+
+# Pipeline de audio
+# Extrae MFCC y carga archivos de audio para la modalidad acústica.
+librosa>=0.10,<1
+
+# Backend de lectura/escritura de audio utilizado por librosa.
+soundfile>=0.13,<1
